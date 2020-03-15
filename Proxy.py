@@ -13,7 +13,7 @@ proxies = {'http': None, 'https': None, "sock5":None}
 mutex = threading.Lock()
 CertUtil = CertUtility('Boxpaper', 'selfsigned.crt', 'certs')
 
-proxyUrl = "https://ltvugp616.us02.horainwebs.top/"
+proxyUrl = ""#写自己的！！！
 MAX_HEADER_SIZE = 10086
 RECV_SIZE = 512
 
