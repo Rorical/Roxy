@@ -1,8 +1,8 @@
-首先需要有Python3，自行百度即可
+首先需要有Python3，自行百度即可(没有的话下一步也跳过去下载release)
 
 然后需要用到pip，打开cmd，定位到代码目录，执行`pip install -r requirements.txt`，即可安装所有的依赖
 
-完了打开Proxy.py，把proxyUrl这个值设置为自己面板服务器的地址
+完了打开setting.ini，把url这个值设置为自己面板服务器的地址
 
 （以下是win10的证书安装方法因为别的系统没试过）
 接下来双击目录下的证书selfsigned.crt，打开如下界面
