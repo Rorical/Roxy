@@ -244,9 +244,11 @@ class Proxy(object): #basic functions
         body = b'\r\n\r\n'.join(data.split(b"\r\n\r\n")[1:])
         return headers,body
     def splithost(self,raw_host):
-        for i in range(len(raw_host)): 
-            if raw_host[i] == ":" : return raw_host[:i].strip(), int(raw_host[i+1:])
-        else : return raw_host.strip(), None
+        for i,whost in enumerate(raw_host): 
+            if whost == ":" : 
+                return raw_host[:i].strip(), int(raw_host[i+1:])
+        else : 
+            return raw_host.strip(), None
     def postserver(self,data):
         return requests.post(self.proxyUrl,data=data,proxies={'http': None, 'https': None, "sock5":None},verify=False,timeout=int(self.timeout))
 
@@ -329,7 +331,7 @@ class Roxy(object): #main functions
         else:
             certfile = self.CertUtil.get_cert(host)
         try:
-            client = ssl.wrap_socket(client,keyfile=certfile,certfile=certfile,server_side=True)
+            client = ssl.wrap_socket(client,keyfile=certfile,certfile=certfile,server_side=True,ssl_version=ssl.PROTOCOL_TLSv1_2)
         except ssl.SSLError as err:
             print("SSL连接错误！请检测证书安装情况")
             print(err)
