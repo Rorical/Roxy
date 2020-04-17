@@ -16,10 +16,43 @@ import zlib
 import re
 import atexit
 from signal import signal, SIGTERM
-import others
 import configparser
+import winreg
+import ctypes
+from urllib.parse import urlparse
+import time
 
 requests.packages.urllib3.disable_warnings()
+
+class setproxy():
+    INTERNET_SETTINGS = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+    'Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings',
+    0, winreg.KEY_ALL_ACCESS)
+    INTERNET_OPTION_REFRESH = 37
+    INTERNET_OPTION_SETTINGS_CHANGED = 39
+    internet_set_option = ctypes.windll.Wininet.InternetSetOptionW
+    def __init__(self,port):
+        self.port = port
+    def creat_key(self,name, value,mytype):
+        winreg.CreateKey(self.INTERNET_SETTINGS, name)
+        winreg.SetValueEx(self.INTERNET_SETTINGS, name, 0, mytype, value)
+    def del_key(self,name):
+        winreg.DeleteValue(self.INTERNET_SETTINGS,name)
+    #稍加改造简书的https://www.jianshu.com/p/6862d35e2855
+
+    def pac_on(self):
+        self.creat_key('AutoConfigURL', u'http://localhost:'+str(self.port)+"/pac",1)
+        self.internet_set_option(0, self.INTERNET_OPTION_REFRESH, 0, 0)
+        self.internet_set_option(0,self.INTERNET_OPTION_SETTINGS_CHANGED, 0, 0)
+
+    def pac_off(self):
+        try:
+            self.del_key("AutoConfigURL")
+            self.del_key("AutoConfigURL")
+        except:
+            time.sleep(0.5)
+        self.internet_set_option(0, self.INTERNET_OPTION_REFRESH, 0, 0)
+        self.internet_set_option(0,self.INTERNET_OPTION_SETTINGS_CHANGED, 0, 0)
 
 class CertUtility(object):
     """Cert Utility module, based on mitmproxy"""
@@ -263,7 +296,7 @@ class Roxy(object): #main functions
         self.namedicts = {"server":{"url":"https://ucrhvx616.tw01.horainwebs.top/","timeout":10},"client":{"port":8080}}#默认的参数，自动填充
         self.readconfig(configfile)
         self.functions = Proxy(self.server_timeout,self.server_url)
-        self.proxySetting = others.setproxy(self.client_port)
+        self.proxySetting = setproxy(self.client_port)
         self.proxySetting.pac_on()
     def __del__(self):
         self.proxySetting.pac_off()
