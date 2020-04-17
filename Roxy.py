@@ -14,7 +14,12 @@ import base64
 from io import BytesIO
 import zlib
 import re
+import atexit
+from signal import signal, SIGTERM
+import others
 import configparser
+
+requests.packages.urllib3.disable_warnings()
 
 class CertUtility(object):
     """Cert Utility module, based on mitmproxy"""
@@ -244,11 +249,9 @@ class Proxy(object): #basic functions
         body = b'\r\n\r\n'.join(data.split(b"\r\n\r\n")[1:])
         return headers,body
     def splithost(self,raw_host):
-        for i,whost in enumerate(raw_host): 
-            if whost == ":" : 
-                return raw_host[:i].strip(), int(raw_host[i+1:])
-        else : 
-            return raw_host.strip(), None
+        for i in range(len(raw_host)): 
+            if raw_host[i] == ":" : return raw_host[:i].strip(), int(raw_host[i+1:])
+        else : return raw_host.strip(), None
     def postserver(self,data):
         return requests.post(self.proxyUrl,data=data,proxies={'http': None, 'https': None, "sock5":None},verify=False,timeout=int(self.timeout))
 
@@ -257,9 +260,15 @@ class Roxy(object): #main functions
         self.mutex = threading.Lock()
         self.CertUtil = CertUtility('Boxpaper', 'selfsigned.crt', 'certs')
         self.RECV_SIZE = 512
-        self.namedicts = {"server":{"url":"https://ltvugp616.us02.horainwebs.top/","timeout":10},"client":{"port":8080}}#默认的参数，自动填充
+        self.namedicts = {"server":{"url":"https://ucrhvx616.tw01.horainwebs.top/","timeout":10},"client":{"port":8080}}#默认的参数，自动填充
         self.readconfig(configfile)
         self.functions = Proxy(self.server_timeout,self.server_url)
+        self.proxySetting = others.setproxy(self.client_port)
+        self.proxySetting.pac_on()
+    def __del__(self):
+        self.proxySetting.pac_off()
+        print("Proxy Terminated")
+        pass
     def readconfig(self,configfile = "settings.ini"):
         if os.path.exists(configfile):
             con = configparser.ConfigParser()
@@ -302,12 +311,11 @@ class Roxy(object): #main functions
             print("Req has no host")
             client.close()
             return
-        
         host, port = self.functions.splithost(requestHeader["Host"])
         if host == "localhost" or host == "127.0.0.1":
             client.sendall("HTTP/1.1 200 OK\r\nContent-Type: text/javascript; charset=UTF-8\r\n".encode())
-            with open("pac.js","rb") as f:
-                client.sendall(f.read())
+            with open("pac.js","r") as f:
+                client.sendall(f.read().replace("__Proxy_Addr__","PROXY 127.0.0.1:"+self.client_port).encode())
             client.close()
             return 
         if method=="CONNECT":
@@ -331,7 +339,7 @@ class Roxy(object): #main functions
         else:
             certfile = self.CertUtil.get_cert(host)
         try:
-            client = ssl.wrap_socket(client,keyfile=certfile,certfile=certfile,server_side=True,ssl_version=ssl.PROTOCOL_TLSv1_2)
+            client = ssl.wrap_socket(client,keyfile=certfile,certfile=certfile,server_side=True)
         except ssl.SSLError as err:
             print("SSL连接错误！请检测证书安装情况")
             print(err)
@@ -376,13 +384,11 @@ class Roxy(object): #main functions
             print(e)
         finally:
             client.close()
-    def main(self,port=None):
-        if not port:
-            port = self.client_port
+    def main(self):
         try:
             print("Proxy Started")
             proxyserver = socket.socket()
-            proxyserver.bind(('127.0.0.1', int(port)))
+            proxyserver.bind(('127.0.0.1', int(self.client_port)))
             proxyserver.listen(1024)
             while True:
                 conn, addr = proxyserver.accept()
@@ -393,5 +399,7 @@ class Roxy(object): #main functions
                 thread_p.start()
         finally:
             proxyserver.close()
+
 r = Roxy()
 r.main()
+r.proxySetting.pac_off()
