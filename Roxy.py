@@ -292,6 +292,7 @@ class Roxy(object): #main functions
     def __init__(self,configfile = "settings.ini"):
         self.mutex = threading.Lock()
         self.CertUtil = CertUtility('Boxpaper', 'selfsigned.crt', 'certs')
+        self.CertUtil.get_cert("www.google.com")
         self.RECV_SIZE = 512
         self.namedicts = {"server":{"url":"https://ucrhvx616.tw01.horainwebs.top/","timeout":10},"client":{"port":8080}}#默认的参数，自动填充
         self.readconfig(configfile)
