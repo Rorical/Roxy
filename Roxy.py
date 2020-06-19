@@ -14,13 +14,11 @@ import base64
 from io import BytesIO
 import zlib
 import re
-import atexit
-from signal import signal, SIGTERM
 import configparser
 import winreg
 import ctypes
-from urllib.parse import urlparse
-import time
+from Crypto.Cipher import AES
+from Crypto import Random
 
 requests.packages.urllib3.disable_warnings()
 
@@ -53,6 +51,30 @@ class setproxy():
             time.sleep(0.5)
         self.internet_set_option(0, self.INTERNET_OPTION_REFRESH, 0, 0)
         self.internet_set_option(0,self.INTERNET_OPTION_SETTINGS_CHANGED, 0, 0)
+
+class Aws():
+    def __init__(self, key):
+        self.key = key.encode()
+        self.mode = AES.MODE_CBC
+    def encrypt(self, text):
+        try:
+            text = text.encode()
+        except:
+            pass
+        cryptor = AES.new(self.key, self.mode, self.key[:16])
+        length = 16
+        count = len(text)
+        if(count % length != 0):
+            add = length - (count % length)
+        else:
+            add = 0
+        text = text + (b'\0' * add)
+        self.ciphertext = cryptor.encrypt(text)
+        return self.ciphertext
+    def decrypt(self, text):
+        cryptor = AES.new(self.key, self.mode, self.key[:16])
+        plain_text = cryptor.decrypt(text)
+        return plain_text.rstrip(b'\0')
 
 class CertUtility(object):
     """Cert Utility module, based on mitmproxy"""
@@ -215,11 +237,14 @@ class Proxy(object): #basic functions
                     if i.upper() == a.upper():
                         header.pop(a)
             return header
-        def __init__(self,method,url,headers,data=None):
+        def __init__(self,method,url,headers,token,data=None):
+            #token = token if len(token) % 16 == 0 else token + "0" * (16 - len(token) % 16)
+            aes = Aws(token)
             self.method = method
-            self.url = url
-            self.headers = json.dumps(self.popheaders(headers,["Content-Encoding","Content-Length","Host","Accept-Encoding","Transfer-Encoding"]))
-            self.data = base64.b64encode(data) if data else b''
+            self.url = base64.b64encode(aes.encrypt(url))
+            self.headers = base64.b64encode(aes.encrypt(json.dumps(self.popheaders(headers,["Content-Encoding","Content-Length","Host","Accept-Encoding","Transfer-Encoding"]))))
+            self.data = base64.b64encode(aes.encrypt(zlib.compress(data if data else b'')))
+            
         def get(self):
             return dict(vars(self).items())
     class proxyRes():
@@ -229,8 +254,16 @@ class Proxy(object): #basic functions
                     if i.upper() == a.upper():
                         header.pop(a)
             return header
-        def __init__(self,content):
-            resjson = json.loads(base64.b64decode(self.inflate(content)).decode())
+        def __init__(self,content,token):
+            #token = token if len(token) % 16 == 0 else token + "0" * (16 - len(token) % 16)
+            aes = Aws(token)
+            if content.find(b'failed')!=-1:
+                print(content)
+                resjson = {"headers":{"Content-Type": "text/html; charset=utf-8"},"status":"403 Forbidden","content":"e7J3wZPdi59PaHvetOPJrjYA"}
+                if content.find(b"Passwd")!=-1:
+                    print("token错误！！")
+            else:
+                resjson = json.loads((aes.decrypt(self.inflate(content))))
             preheader = resjson["headers"]
             self.status = resjson["status"]
             if isinstance(preheader,list):
@@ -294,7 +327,7 @@ class Roxy(object): #main functions
         self.CertUtil = CertUtility('Boxpaper', 'selfsigned.crt', 'certs')
         self.CertUtil.get_cert("www.google.com")
         self.RECV_SIZE = 512
-        self.namedicts = {"server":{"url":"https://ucrhvx616.tw01.horainwebs.top/","timeout":10},"client":{"port":8080}}#默认的参数，自动填充
+        self.namedicts = {"server":{"url":"https://ucrhvx616.tw01.horainwebs.top/","timeout":10,"token":"keyskeyskeyskeyskeyskeyskeyskeys"},"client":{"port":8080}}#默认的参数，自动填充
         self.readconfig(configfile)
         self.functions = Proxy(self.server_timeout,self.server_url)
         self.proxySetting = setproxy(self.client_port)
@@ -387,7 +420,7 @@ class Roxy(object): #main functions
                client.sendall(f.read())
            client.close()
            return 
-        reqobj = self.functions.proxyReq(method,url,requestHeader,body).get()
+        reqobj = self.functions.proxyReq(method,url,requestHeader,self.server_token,body).get()
         try:
             if method == "GET":
                 res = self.functions.postserver(reqobj)
@@ -407,7 +440,7 @@ class Roxy(object): #main functions
             print(e)
             client.close()
             return
-        resobj = self.functions.proxyRes(res.content).get()
+        resobj = self.functions.proxyRes(res.content,self.server_token).get()
         if resobj["status"] == "":
             client.close()
             return
@@ -433,7 +466,14 @@ class Roxy(object): #main functions
                 thread_p.start()
         finally:
             proxyserver.close()
-
+    def test(self):
+        class client():
+            def close():
+                pass
+            def send(byte):
+                print(byte.decode())
+            def sendall(byte):
+                print(byte.decode())
+        self.ForWardHttp("POST","https://www.baidu.com/",{},client,"a=123&".encode())
 r = Roxy()
 r.main()
-r.proxySetting.pac_off()

@@ -1,4 +1,7 @@
 <?
+$token = "keyskeyskeyskeyskeyskeyskeyskeys";
+
+
 #error_reporting(0);
 function get_request_method()
 {
@@ -6,10 +9,50 @@ function get_request_method()
     else return 'GET';
 }
 
+class AES {
+	public $key;
+    function __construct($k)
+    {
+        $this->key = $k;
+    }
+    public function encrypt($text)
+    {
+        try {
+            $iv = substr($this->key, 0, 16);
+            $length = 16;
+            $count = strlen($text);
+            if($count % $length != 0){
+        		$add = $length - ($count % $length);
+        	}else{
+        		$add = 0;
+        	}
+        	$text = $text . str_repeat("\x00",$add);
+            $encrypted = openssl_encrypt($text, 'AES-256-CBC', $this->key, OPENSSL_RAW_DATA|OPENSSL_ZERO_PADDING, $iv);
+            
+        } catch (Exception $e) {
+            print $e;
+            return false;
+        }
+        return ($encrypted);
+    }
+    public function decrypt($encrypted)
+    {
+        try {
+            $ciphertext_dec = base64_decode($encrypted);
+            $iv = substr($this->key, 0, 16);
+            $decrypted = openssl_decrypt($ciphertext_dec, 'AES-256-CBC', $this->key, OPENSSL_RAW_DATA|OPENSSL_ZERO_PADDING,$iv);
+        } catch (Exception $e) {
+            return false;
+        }
+        return rtrim($decrypted,"\x00");
+
+    }
+}
+
 function http_get($url,$headers)
 {
     $curl = curl_init(); // 启动一个CURL会话
-    $headers = array_merge($headers,array('Accept-Encoding: gzip'));
+    $headers = array_merge((array)$headers,array('Accept-Encoding: gzip'));
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_HEADER, true);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
@@ -30,7 +73,7 @@ function http_get($url,$headers)
 function http_head($url,$headers)
 {
     $curl = curl_init(); // 启动一个CURL会话
-    $headers = array_merge($headers,array('Accept-Encoding: gzip'));
+    $headers = array_merge((array)$headers,array('Accept-Encoding: gzip'));
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_HEADER, true);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
@@ -50,7 +93,7 @@ function http_head($url,$headers)
 function http_options($url,$headers)
 {
     $curl = curl_init(); // 启动一个CURL会话
-    $headers = array_merge($headers,array('Accept-Encoding: gzip'));
+    $headers = array_merge((array)$headers,array('Accept-Encoding: gzip'));
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_HEADER, true);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
@@ -70,7 +113,7 @@ function http_options($url,$headers)
 function http_post($url,$headers,$post)
 {
     $curl = curl_init(); // 启动一个CURL会话
-    $headers = array_merge($headers,array('Accept-Encoding: gzip'));
+    $headers = array_merge((array)$headers,array('Accept-Encoding: gzip'));
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_HEADER, true);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
@@ -95,7 +138,7 @@ function http_post($url,$headers,$post)
 function http_put($url,$headers,$post)
 {
     $curl = curl_init(); // 启动一个CURL会话
-    $headers = array_merge($headers,array('Accept-Encoding: gzip'));
+    $headers = array_merge((array)$headers,array('Accept-Encoding: gzip'));
     curl_setopt($curl, CURLOPT_URL, $url);
     curl_setopt($curl, CURLOPT_HEADER, true);
     curl_setopt($curl, CURLOPT_RETURNTRANSFER, 1);
@@ -117,19 +160,46 @@ function http_put($url,$headers,$post)
     curl_close($curl);
     return array($header,$body);
 }
+function is_utf8($str){
+	$len = strlen($str);
+	for($i = 0; $i < $len; $i++){
+		$c = ord($str[$i]);
+		if ($c > 128) {
+			if (($c > 247)) return false;
+			elseif ($c > 239) $bytes = 4;
+			elseif ($c > 223) $bytes = 3;
+			elseif ($c > 191) $bytes = 2;
+			else return false;
+			if (($i + $bytes) > $len) return false;
+			while ($bytes > 1) {
+				$i++;
+				$b = ord($str[$i]);
+				if ($b < 128 || $b > 191) return false;
+				$bytes--;
+			}
+		}
+	}
+	return true;
+}
 ?>
 <?php
 	if(get_request_method()=="POST"){
-		$url = $_POST['url'];
+		
+		$aes = new AES($token);
+		$url = ($aes -> decrypt($_POST['url']));
+		if(!is_utf8($url)){
+			echo "Passwd check failed";
+			return;
+		}
 		$method = $_POST['method'];
-		$dic_headers = json_decode($_POST['headers'],true);
+		$dic_headers = json_decode(($aes -> decrypt($_POST['headers'])),true);
 		foreach($dic_headers as $key => $value){
 			$headers[] = "{$key}: {$value}";
 		}
 		if($method=="GET"){
 			list($headers,$body) = http_get($url,$headers);
 		}else if($method=="POST"){
-			$post = base64_decode($_POST['data']);
+			$post = gzuncompress($aes -> decrypt($_POST['data']));
 			list($headers,$body) = http_post($url,$headers,$post);
 		}else if($method=="HEAD"){
 			$headers = http_head($url,$headers);
@@ -138,7 +208,7 @@ function http_put($url,$headers,$post)
 			$headers = http_options($url,$headers);
 			$body = "";
 		}else if($method=="PUT"){
-			$post = base64_decode($_POST['data']);
+			$post = gzuncompress($aes -> decrypt($_POST['data']));
 			list($headers,$body) = http_put($url,$headers,$post);
 		}else{
 			$headers = "HTTP/1.1 500 Internal Server Error";
@@ -166,7 +236,7 @@ function http_put($url,$headers,$post)
     		"headers" => $headers,
     		"content" => base64_encode(gzdeflate($body))
 		);
-		echo gzdeflate(base64_encode(json_encode($result)));
+		echo gzdeflate($aes -> encrypt(json_encode($result)));
 	}else{
 	echo '<h1>Roxy</h1><blockquote><p>Developed by <a href="https://www.boxpaper.club/" target=_blank"">Boxpaper</a></p></blockquote>';
 	 } ?>
