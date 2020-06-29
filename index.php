@@ -1,5 +1,5 @@
 <?
-$token = "keyskeyskeyskeyskeyskeyskeyskeys";
+$token = "7f5ac5a9570e90930ec80c7b3cd546bb";
 
 
 #error_reporting(0);
