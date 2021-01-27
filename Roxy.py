@@ -319,7 +319,8 @@ class Proxy(object): #basic functions
             if raw_host[i] == ":" : return raw_host[:i].strip(), int(raw_host[i+1:])
         else : return raw_host.strip(), None
     def postserver(self,data):
-        return requests.post(self.proxyUrl,data=data,proxies={'http': None, 'https': None, "sock5":None},verify=False,timeout=int(self.timeout))
+        url = random.choice(self.proxyUrl.split(","))
+        return requests.post(url,data=data,proxies={'http': None, 'https': None, "sock5":None},verify=False,timeout=int(self.timeout))
 
 class Roxy(object): #main functions
     def __init__(self,configfile = "settings.ini"):
