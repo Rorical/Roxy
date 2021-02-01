@@ -1,2 +1,2 @@
 @echo off
-.\runtime\python Roxy.py
+python Roxy.py

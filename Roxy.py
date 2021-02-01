@@ -19,6 +19,7 @@ import winreg
 import ctypes
 from Crypto.Cipher import AES
 from Crypto import Random
+import atexit
 
 requests.packages.urllib3.disable_warnings()
 
@@ -467,14 +468,8 @@ class Roxy(object): #main functions
                 thread_p.start()
         finally:
             proxyserver.close()
-    def test(self):
-        class client():
-            def close():
-                pass
-            def send(byte):
-                print(byte.decode())
-            def sendall(byte):
-                print(byte.decode())
-        self.ForWardHttp("POST","https://www.baidu.com/",{},client,"a=123&".encode())
-r = Roxy()
-r.main()
+roxy = Roxy()
+roxy.main()
+@atexit.register
+def close():
+    del roxy
